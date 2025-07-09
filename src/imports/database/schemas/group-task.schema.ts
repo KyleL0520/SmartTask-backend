@@ -16,7 +16,7 @@ export class IGroupTask {
     @Prop({ required: true })
     projectDescription: string;
 
-    @Prop({ default: 'To-do' })
+    @Prop({ default: 'Pending' })
     status: string;
 }
 

@@ -21,7 +21,7 @@ export const EMAIL_PARAMS = [
         subject: "Congratulations, You have successfully registered an new account!",
         title: "You New Account, {{dynamicUsernam}} had successfully registered!",
         description: "We are thrilled to inform you that you account is all set. You can start your registration now!",
-        btnText: "Login Now !"
+        btnText: "Verify my email address"
     },
     {
         key: "resetOtp",

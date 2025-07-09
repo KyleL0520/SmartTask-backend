@@ -39,6 +39,12 @@ export class ITask {
     @Prop({ default: 'Pending' })
     status: string;
 
+    @Prop({ default: false })
+    isExpired: boolean;
+
+    @Prop({ default: false })
+    isApproved: boolean;
+
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: IGroupTask.name })
     groupTask: IGroupTask;
 }

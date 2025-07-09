@@ -28,16 +28,17 @@ export class GroupTaskController {
     async list(@Query() query) {
         const {
             offset = 0,
-            user
+            owner
         } = query;
         const where: any = {};
 
-        if (user) {
-            where.user = new mongo.ObjectId(user)
+        if (owner) {
+            where.owner = new mongo.ObjectId(owner)
         }
 
         const total = await this.database.GroupTask.countDocuments(where);
         const items = await this.database.GroupTask.find(where)
+            .populate('owner')
             .skip(offset || 0);
 
         return {
@@ -53,7 +54,8 @@ export class GroupTaskController {
             ...Dto(body),
         });
 
-        return this, this.database.GroupTask.findOne({ _id: r._id });
+        return this, this.database.GroupTask.findOne({ _id: r._id })
+            .populate('owner');
     }
 
     @Get('user')
@@ -66,20 +68,11 @@ export class GroupTaskController {
         return r;
     }
 
-    // @Get(':id')
-    // @UseGuards(AuthGuard)
-    // async get(@Param('id') id) {
-    //     const r = await this.database.GroupTask.findOne({ _id: id });
-    //     if (!r) {
-    //         throw new NotFoundException();
-    //     }
-    //     return r;
-    // }
-
     @Delete(':id')
     @UseGuards(AuthGuard)
     async delete(@Param('id') id) {
-        const r = await this.database.GroupTask.findOne({ _id: id });
+        const r = await this.database.GroupTask.findOne({ _id: id })
+            .populate('owner');
 
         if (r) {
             await this.database.GroupTask.deleteOne({ _id: id });
@@ -95,7 +88,9 @@ export class GroupTaskController {
         @Param('id') id,
         @Body() body,
     ) {
-        const rs = await this.database.GroupTask.findOne({ _id: id }).lean()
+        const rs = await this.database.GroupTask.findOne({ _id: id })
+            .lean()
+
         if (!rs) {
             throw new NotFoundException();
         }
@@ -103,6 +98,7 @@ export class GroupTaskController {
 
         await this.database.GroupTask.updateOne({ _id: id }, { $set: set })
 
-        return this.database.GroupTask.findOne({ _id: id });
+        return this.database.GroupTask.findOne({ _id: id })
+            .populate('owner');
     }
 }

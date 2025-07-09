@@ -2,15 +2,17 @@ import { ForbiddenException, Injectable, Logger, NotAcceptableException, NotFoun
 import { DatabaseService } from "../database/service/database.service";
 import { MailerService } from "../util/mailer/mailer.service";
 import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
-import { AUTH_USER_JWT_EXPIRATION_DAYS, AUTH_USER_JWT_EXPIRATION_MINUTES, AUTH_USER_JWT_SECRET, FORGET_PASSWORD_EXPIRY_MINUTES, PUBLIC_CLIENT } from "src/config";
+import { APP_PORT, AUTH_USER_JWT_EXPIRATION_DAYS, AUTH_USER_JWT_EXPIRATION_MINUTES, AUTH_USER_JWT_SECRET, FORGET_PASSWORD_EXPIRY_MINUTES, PUBLIC_CLIENT } from "src/config";
 
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
-import moment from 'dayjs';
+import dayjs from 'dayjs';
 
 import { InvalidCredential } from "src/exceptions/invalid-credential";
 import { UserDocument } from "../database/schemas/user.schema";
 import { UserInfoService } from "../shared/user.service";
+import { randomBytes } from "crypto";
+import { handleUpload } from "../util/fileUpload/cloudinary";
 
 
 @Injectable()
@@ -110,6 +112,67 @@ export class AuthService {
 
                 return { accessToken, refreshToken };
             },
+            signUp: async (body: any, image: Express.Multer.File) => {
+                if ((await this.database.User.countDocuments({ username: body.username })) > 0) {
+                    throw new NotAcceptableException(`Username already used by another user.`);
+                }
+
+                if ((await this.database.User.countDocuments({ email: body.email })) > 0) {
+                    throw new NotAcceptableException(`Email is already used by another user.`);
+                }
+
+                const verificationToken = randomBytes(32).toString('hex');
+
+                let avatarPhotoUrl = '/assets/images/defaultAvatar.png';
+                if (image) {
+                    const b64 = Buffer.from(image.buffer).toString('base64');
+                    const dataURI = 'data:' + image.mimetype + ';base64,' + b64;
+                    const cloudinaryRes = await handleUpload(dataURI);
+                    avatarPhotoUrl = cloudinaryRes.secure_url;
+                }
+
+                const r = await this.database.User.create({
+                    username: body.username,
+                    email: body.email,
+                    password: body.password,
+                    avatarPhoto: avatarPhotoUrl,
+                    isEmailVerified: false,
+                    verificationToken
+                });
+
+                if (r) {
+                    const verifyUrl = `http://localhost:${APP_PORT}/api/auth/verify-email?token=${r.verificationToken}`;
+
+                    const personalizations = {
+                        client_name: r.username,
+                        title: 'Email verification',
+                        btnText: 'Verify my email address',
+                        description: "You're almost set to start enjoying Smart Task. Simply click the link below to verify your email address and get started. The link expires in 48 hours.",
+                        verifyUrl: verifyUrl
+                    }
+
+                    this.mailer
+                        .send({
+                            client_email: r.email,
+                            client_name: r.username,
+                            template: "TemplateWithBtn",
+                            personalizations: personalizations,
+                            subject: 'Verify Email',
+                            verifyUrl: verifyUrl
+                        })
+                        .then(() => {
+                            this.logger.verbose(
+                                `send email for user ${r.username} to ${r.email}`
+                            );
+                        })
+                        .catch((err) => {
+                            this.logger.warn(
+                                `failed sent email for user ${r.username} tp ${r.email}: ${err}`
+                            );
+                        });
+                }
+                return this.database.User.findOne({ _id: r._id });
+            },
             forgetPassword: {
                 request: async (id) => {
                     const user = await this.database.User.findOne({
@@ -124,14 +187,14 @@ export class AuthService {
                     )}`.padStart(6, '0');
 
                     const expiryMinutes = FORGET_PASSWORD_EXPIRY_MINUTES ?? 10;
-                    const expiry = moment().add(expiryMinutes, 'minutes').endOf('minute');
+                    // const expiry = dayjs().add(expiryMinutes, 'minutes').endOf('minute');
 
                     await this.database.User.updateOne(
                         { _id: id },
                         {
                             $set: {
                                 forgetPasswordPasscode: bcrypt.hashSync(secret, 10),
-                                forgetPasswordExpiry: expiry.toDate()
+                                // forgetPasswordExpiry: expiry.toDate()
                             }
                         }
                     );
@@ -140,16 +203,7 @@ export class AuthService {
 
                     const personalizations = {
                         verification_code: secret,
-                        eventName: 'SMART TASK',
-                        imgUrl: PUBLIC_CLIENT + '/assets/images/logo.png',
-                        title: resetPasswordOTPParams.title
-                            .replace(`{{dynamicUsername}}`, user.username),
-                        footer: resetPasswordOTPParams.footer
-                            .replace(`{{dynamicUsername}}`, user.username),
-                        btnText: resetPasswordOTPParams.btnText
-                            .replace(`{{dynamicUsername}}`, user.username),
-                        description: resetPasswordOTPParams.description
-                            .replace(`{{dynamicUsername}}`, user.username),
+                        expiryMinutes: expiryMinutes
                     }
 
                     this.mailer
@@ -176,16 +230,16 @@ export class AuthService {
                         _id: id,
                     })
                         .select('+forgetPasswordPasscode')
-                        .select('forgetPasswordExpiry');
+                    // .select('forgetPasswordExpiry');
                     if (
-                        user.forgetPasswordExpiry &&
+                        // user.forgetPasswordExpiry &&
                         bcrypt.compareSync(token, user.forgetPasswordPasscode)
                     ) {
-                        if (moment().isAfter(moment(user.forget_password_expiry))) {
-                            throw new NotAcceptableException(
-                                `Verification code expired. Pleas send another request.`
-                            )
-                        }
+                        // if (dayjs().isAfter(dayjs(user.forget_password_expiry))) {
+                        //     throw new NotAcceptableException(
+                        //         `Verification code expired. Pleas send another request.`
+                        //     )
+                        // }
                         return true;
                     }
                     throw new ForbiddenException(`invalid verification code.`);

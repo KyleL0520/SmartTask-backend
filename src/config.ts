@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = {
     DIR_TEMP: path.join(APP_DIR_STORAGE, "temp"),
     DIR_DATA: path.join(APP_DIR_STORAGE, "data"),
     DIR_LOGS: path.join(APP_DIR_STORAGE, "logs"),
+    DIR_TPLT: path.join(APP_DIR_STORAGE, "templates"),
 
     LOG_LEVEL: "info",
     LOG_DAILY_ROTATE_DAYS: 5,
@@ -34,6 +35,7 @@ export const {
     DIR_TEMP,
     DIR_DATA,
     DIR_LOGS,
+    DIR_TPLT,
     DATABASE_MONGO_URL,
 
     CORS_ORIGINS,
@@ -64,6 +66,7 @@ export const {
     E_MAILER_SENDER_API_KEY,
     E_MAILER_VERIFY_CODE_TEMPLATE,
     E_MAILER_BLANK_WITH_BTN_TEMPLATE,
+    E_MAILER_TASK_EXPIRED_TEMPLATE
 }: any = { ...DEFAULT_CONFIG, ...process.env };
 
 logger.verbose(`loaded .env config file, environment [${APP_ENVIRONMENT}]`);

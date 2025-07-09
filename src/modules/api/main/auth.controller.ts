@@ -36,76 +36,7 @@ export class AuthController {
                 .build())
         image: Express.Multer.File
     ) {
-        if ((await this.database.User.countDocuments({ username: body.username })) > 0) {
-            throw new NotAcceptableException(`Username already used by another user.`);
-        }
-
-        if ((await this.database.User.countDocuments({ email: body.email })) > 0) {
-            throw new NotAcceptableException(`Email is already used by another user.`);
-        }
-
-        const verificationToken = randomBytes(32).toString('hex');
-
-        let avatarPhotoUrl = '/assets/images/defaultAvatar.png';
-        if (image) {
-            const b64 = Buffer.from(image.buffer).toString('base64');
-            const dataURI = 'data:' + image.mimetype + ';base64,' + b64;
-            const cloudinaryRes = await handleUpload(dataURI);
-            avatarPhotoUrl = cloudinaryRes.secure_url;
-        }
-
-        const r = await this.database.User.create({
-            username: body.username,
-            email: body.email,
-            password: body.password,
-            avatarPhoto: avatarPhotoUrl,
-            isEmailVerified: false,
-            verificationToken
-        });
-
-        if (r) {
-            const registerNewAccountParams = await this.userInfo.getEmailParams("verifyEmail");
-            const verifyUrl = `http://localhost:${APP_PORT}/api/auth/verify-email?token=${r.verificationToken}`;
-
-            const eventName = 'SMART TASK';
-            const personalizations = {
-                eventName: eventName,
-                imgUrl: PUBLIC_CLIENT + '/assets/images/logo.png',
-                title: registerNewAccountParams.title
-                    .replace(`{{dynamicUsername}}`, r.username)
-                    .replace(`{{dynamicEventName}}`, eventName),
-                btnText: registerNewAccountParams.btnText
-                    .replace(`{{dynamicUsername}}`, r.username)
-                    .replace(`{{dynamicEventName}}`, eventName),
-                description: registerNewAccountParams.description
-                    .replace(`{{dynamicUsername}}`, r.username)
-                    .replace(`{{dynamicEventName}}`, eventName),
-                verifyUrl: verifyUrl
-            }
-
-            this.mailer
-                .send({
-                    client_email: r.email,
-                    client_name: r.name,
-                    template: "TemplateWithBtn",
-                    personalizations: personalizations,
-                    subject: registerNewAccountParams.subject
-                        .replace(`{{dynamicUsername}}`, r.username)
-                        .replace(`{{dynamicEventName}}`, eventName),
-                    verifyUrl: verifyUrl
-                })
-                .then(() => {
-                    this.logger.verbose(
-                        `send email for user ${r.username} to ${r.email}`
-                    );
-                })
-                .catch((err) => {
-                    this.logger.warn(
-                        `failed sent email for user ${r.username} tp ${r.email}: ${err}`
-                    );
-                });
-        }
-        return this.database.User.findOne({ _id: r._id });
+        return await this.auth.user.signUp(body, image);
     }
 
     @Post('login')
