@@ -22,8 +22,6 @@ export class AuthController {
     constructor(
         private auth: AuthService,
         private database: DatabaseService,
-        private userInfo: UserInfoService,
-        private mailer: MailerService,
     ) { }
 
     @Post('signup')

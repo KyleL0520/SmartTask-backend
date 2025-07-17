@@ -45,6 +45,9 @@ export class ITask {
     @Prop({ default: false })
     isApproved: boolean;
 
+    @Prop({ default: false })
+    isReminderSent: boolean;
+
     @Prop({ type: mongoose.Schema.Types.ObjectId, ref: IGroupTask.name })
     groupTask: IGroupTask;
 }

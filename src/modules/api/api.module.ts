@@ -8,13 +8,15 @@ import { GroupTaskController } from "./main/group-task.controller";
 import { SharedModule } from "src/imports/shared/shared.module";
 import { MailerModule } from "src/imports/util/mailer/mailer.module";
 import { UserController } from "./main/user.controller";
+import { TaskParserModule } from "../task-parser/task-parser.module";
 
 @Module({
     imports: [
         AuthModule,
         DatabaseModule,
         SharedModule,
-        MailerModule
+        MailerModule,
+        TaskParserModule
     ],
 
     controllers: [

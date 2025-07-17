@@ -28,12 +28,21 @@ export class GroupTaskController {
     async list(@Query() query) {
         const {
             offset = 0,
-            owner
+            user
         } = query;
         const where: any = {};
 
-        if (owner) {
-            where.owner = new mongo.ObjectId(owner)
+        if (user) {
+            const userTasks = await this.database.Task.find({ user: user }).select('groupTask');
+
+            const groupTaskIds = userTasks
+                .map(task => task.groupTask)
+                .filter(id => id);
+
+            where.$or = [
+                { owner: user },
+                { _id: { $in: groupTaskIds } }
+            ];
         }
 
         const total = await this.database.GroupTask.countDocuments(where);

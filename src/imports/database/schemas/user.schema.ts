@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
-import { CLOUDINARY_API_KEY } from "src/config";
 import * as bcrypt from "bcryptjs";
 
 export type UserDocument = HydratedDocument<IUser>;

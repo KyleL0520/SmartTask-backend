@@ -1,11 +1,12 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, UseGuards, Logger, Res } from "@nestjs/common";
-import { populate } from "dotenv";
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, UseGuards, Logger, Res, Req, BadRequestException } from "@nestjs/common";
 import { mongo } from "mongoose";
 import { APP_PORT, PUBLIC_CLIENT } from "src/config";
 import { AuthGuard } from "src/imports/auth/auth.guard";
+import { CategoryDocument } from "src/imports/database/schemas/category.schema";
 import { DatabaseService } from "src/imports/database/service/database.service";
 import { MailerService } from "src/imports/util/mailer/mailer.service";
-import { Response } from 'express';
+import { TaskParserService } from "src/modules/task-parser/task-parser.service";
+import axios from 'axios';
 
 const Dto = (body: any) => {
     const rs: any = {};
@@ -22,6 +23,7 @@ const Dto = (body: any) => {
         'status',
         'isExpired',
         'isApproved',
+        'isReminderSent',
         'groupTask'
     ]) {
         if (body.hasOwnProperty(k)) {
@@ -33,11 +35,12 @@ const Dto = (body: any) => {
 
 @Controller('/api/task')
 export class TaskController {
-    private readonly logger = new Logger('TASKCONTROLLER');
+    private readonly logger = new Logger(TaskController.name);
 
     constructor(
         private database: DatabaseService,
         private mailer: MailerService,
+        private taskParserService: TaskParserService
     ) { }
 
     @Get('')
@@ -49,11 +52,14 @@ export class TaskController {
             status,
             groupTaskId,
             isGroupTask,
-            isApproved
+            isApproved,
+            isByUser
         } = query;
         const where: any = {};
 
-        if (user) where.user = new mongo.ObjectId(user)
+        if (isByUser == 'true') {
+            if (user) where.user = new mongo.ObjectId(user)
+        }
 
         if (status) where.status = status;
 
@@ -115,9 +121,8 @@ export class TaskController {
 
             const personalizations = {
                 client_name: task.user.username,
-                imgUrl: PUBLIC_CLIENT + '/assets/images/logo.png',
-                title: 'Accept task',
-                btnText: 'Accept task',
+                title: 'Task Invitation!',
+                btnText: 'Accept task invitation',
                 description: `${task.groupTask.owner.username} is inviting you to join his project. Simply click the link below to accept the task and get started.`,
                 verifyUrl: approvalLink
             }
@@ -128,7 +133,7 @@ export class TaskController {
                     client_name: task.user.username,
                     template: "TemplateWithBtn",
                     personalizations: personalizations,
-                    subject: 'Accept task',
+                    subject: 'Task Invitation!',
                     verifyUrl: approvalLink
                 })
                 .then(() => {
@@ -144,6 +149,115 @@ export class TaskController {
         }
 
         return task;
+    }
+
+    // @Post('parse')
+    // @UseGuards(AuthGuard)
+    // async parseFromtext(@Body() body) {
+    //     const categories = await this.database.Category.find({ user: body.user });
+
+    //     const parsed = await this.taskParserService.parseTaskFromText(body.text, body.user, categories);
+    //     console.log('parsed:', JSON.stringify(parsed, null, 2));
+
+    //     const createdTask = await this.database.Task.create({
+    //         user: body.user,
+    //         title: parsed.title,
+    //         description: parsed.description || parsed.title,
+    //         deadlinesDate: parsed.deadlinesDate,
+    //         deadlinesTime: parsed.deadlinesTime,
+    //         reminderDate: parsed.reminderDate,
+    //         reminderTime: parsed.reminderTime,
+    //         priority: parsed.priority,
+    //         category: parsed.category,
+    //         groupTask: body.groupTask,
+    //         isApproved: true,
+    //         status: 'Pending',
+    //     });
+
+    //     console.log(`createdTask: ${createdTask}`);
+
+    //     const populatedTask = await this.database.Task.findById(createdTask._id)
+    //         .populate('category')
+    //         .populate('user')
+    //         .populate({
+    //             path: 'groupTask',
+    //             populate: [{ path: 'owner' }],
+    //         });
+    //     console.log(`populatedTask: ${populatedTask}`);
+
+    //     return populatedTask;
+    // }
+
+    @Post('parse')
+    @UseGuards(AuthGuard)
+    async parseFromtext(@Body() body) {
+        const { text, label, user, groupTask } = body;
+
+        try {
+            const response = await axios.post('http://localhost:8000/predict', { text, label });
+            const parsed = response.data;
+
+            const titleCharCount = parsed.title?.trim().length || 0;
+            const descriptionCharCount = parsed.description?.trim().length || 0;
+
+            if (titleCharCount > 25) {
+                throw new BadRequestException(`Title exceeds 100 characters (found ${titleCharCount})`);
+            }
+
+            if (descriptionCharCount > 130) {
+                throw new BadRequestException(`Description exceeds 500 characters (found ${descriptionCharCount})`);
+            }
+
+            const deadlineDT = new Date(`${parsed.deadlinesDate} ${parsed.deadlinesTime}`);
+            const reminderDT = parsed.reminderDate && parsed.reminderTime
+                ? new Date(`${parsed.reminderDate} ${parsed.reminderTime}`)
+                : null;
+
+            const now = new Date();
+
+            if (deadlineDT < now) {
+                throw new BadRequestException("Deadline cannot be before the current time");
+            }
+
+            if (reminderDT && reminderDT >= deadlineDT) {
+                throw new BadRequestException("Reminder time cannot be after the deadline");
+            }
+
+            let categoryDoc = await this.database.Category.findOne({ name: parsed.category, user });
+
+            if (!categoryDoc) {
+                categoryDoc = await this.database.Category.findOne({ name: 'Others', user });
+            }
+
+            const createdTask = await this.database.Task.create({
+                user: user,
+                title: parsed.title,
+                description: parsed.description || parsed.title,
+                deadlinesDate: parsed.deadlinesDate,
+                deadlinesTime: parsed.deadlinesTime,
+                reminderDate: parsed.reminderDate || null,
+                reminderTime: parsed.reminderTime || null,
+                priority: parsed.priority,
+                category: categoryDoc,
+                groupTask: groupTask,
+                isApproved: true,
+                status: 'Pending',
+            });
+
+            const populatedTask = await this.database.Task.findById(createdTask._id)
+                .populate('category')
+                .populate('user')
+                .populate({
+                    path: 'groupTask',
+                    populate: [{ path: 'owner' }],
+                });
+
+            return populatedTask;
+
+        } catch (error) {
+            console.error('Error in parseFromtext:', error);
+            throw new BadRequestException('Failed to parse text using ML model.');
+        }
     }
 
     @Get('approve')
@@ -216,9 +330,8 @@ export class TaskController {
 
             const personalizations = {
                 client_name: task.user.username,
-                imgUrl: PUBLIC_CLIENT + '/assets/images/logo.png',
-                title: 'Accept task',
-                btnText: 'Accept task',
+                title: 'Task Invitation!',
+                btnText: 'Accept task invitation',
                 description: `${task.groupTask.owner.username} is inviting you to join his project. Simply click the link below to accept the task and get started.`,
                 verifyUrl: approvalLink
             }
@@ -229,7 +342,7 @@ export class TaskController {
                     client_name: task.user.username,
                     template: "TemplateWithBtn",
                     personalizations: personalizations,
-                    subject: 'Accept task',
+                    subject: 'Task Invitation!',
                     verifyUrl: approvalLink
                 })
                 .then(() => {

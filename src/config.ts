@@ -66,7 +66,10 @@ export const {
     E_MAILER_SENDER_API_KEY,
     E_MAILER_VERIFY_CODE_TEMPLATE,
     E_MAILER_BLANK_WITH_BTN_TEMPLATE,
-    E_MAILER_TASK_EXPIRED_TEMPLATE
+    E_MAILER_TASK_EXPIRED_TEMPLATE,
+    E_MAILER_SENDER_PASS,
+
+    OPENAI_API_KEY
 }: any = { ...DEFAULT_CONFIG, ...process.env };
 
 logger.verbose(`loaded .env config file, environment [${APP_ENVIRONMENT}]`);

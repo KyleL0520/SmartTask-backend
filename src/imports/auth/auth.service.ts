@@ -6,7 +6,6 @@ import { APP_PORT, AUTH_USER_JWT_EXPIRATION_DAYS, AUTH_USER_JWT_EXPIRATION_MINUT
 
 import * as jwt from 'jsonwebtoken';
 import * as bcrypt from 'bcryptjs';
-import dayjs from 'dayjs';
 
 import { InvalidCredential } from "src/exceptions/invalid-credential";
 import { UserDocument } from "../database/schemas/user.schema";
@@ -140,6 +139,11 @@ export class AuthService {
                     verificationToken
                 });
 
+                await this.database.Category.create({
+                    name: 'Others',
+                    user: r._id
+                });
+
                 if (r) {
                     const verifyUrl = `http://localhost:${APP_PORT}/api/auth/verify-email?token=${r.verificationToken}`;
 
@@ -147,7 +151,7 @@ export class AuthService {
                         client_name: r.username,
                         title: 'Email verification',
                         btnText: 'Verify my email address',
-                        description: "You're almost set to start enjoying Smart Task. Simply click the link below to verify your email address and get started. The link expires in 48 hours.",
+                        description: "You're almost set to start enjoying Smart Task. Simply click the link below to verify your email address and get started.",
                         verifyUrl: verifyUrl
                     }
 

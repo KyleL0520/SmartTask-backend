@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, NotAcceptableException, NotFoundExceptio
 import { mongo } from "mongoose";
 import { AuthGuard } from "src/imports/auth/auth.guard";
 import { DatabaseService } from "src/imports/database/service/database.service";
+import { TaskParserService } from "src/modules/task-parser/task-parser.service";
 
 const Dto = (body: any) => {
     const rs: any = {};
@@ -19,7 +20,7 @@ const Dto = (body: any) => {
 @Controller('/api/category')
 export class CategoryController {
     constructor(
-        private database: DatabaseService
+        private database: DatabaseService,
     ) { }
 
     @Get('')
