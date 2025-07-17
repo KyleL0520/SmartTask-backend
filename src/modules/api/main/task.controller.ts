@@ -197,15 +197,15 @@ export class TaskController {
             const response = await axios.post('http://localhost:8000/predict', { text, label });
             const parsed = response.data;
 
-            const titleCharCount = parsed.title?.trim().length || 0;
             const descriptionCharCount = parsed.description?.trim().length || 0;
 
-            if (titleCharCount > 25) {
-                throw new BadRequestException(`Title exceeds 100 characters (found ${titleCharCount})`);
-            }
+            const titleWordCount = parsed.title?.trim().split(/\s+/).length || 0;
 
+            if (titleWordCount > 25) {
+                console.warn(`Title truncated to 25 words by FastAPI. Original length was ${titleWordCount} words.`);
+            }
             if (descriptionCharCount > 130) {
-                throw new BadRequestException(`Description exceeds 500 characters (found ${descriptionCharCount})`);
+                throw new BadRequestException(`Description exceeds 130 characters (found ${descriptionCharCount})`);
             }
 
             const deadlineDT = new Date(`${parsed.deadlinesDate} ${parsed.deadlinesTime}`);

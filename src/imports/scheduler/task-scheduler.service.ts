@@ -52,8 +52,8 @@ export class TaskSchedulerService {
         const now = dayjs.utc();
 
         const tasks = await this.database.Task.find({
-            reminderDate: { $ne: null },
-            reminderTime: { $ne: null },
+            reminderDate: { $nin: [null, ""] },
+            reminderTime: { $nin: [null, ""] },
             isReminderSent: false
         }).populate('user');
 
